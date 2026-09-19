@@ -20,18 +20,16 @@ class AppService {
     if (kIsWeb) return;
     if (_isPoolakeyInitialized) return;
     try {
-      bool connected = await FlutterPoolakey.connect(
+      await FlutterPoolakey.connect(
         _rsaPublicKey,
         onDisconnected: () {
           _isPoolakeyInitialized = false;
         },
       ).timeout(const Duration(seconds: 6), onTimeout: () {
         debugPrint("Poolakey connection timed out");
-        return false;
+        throw Exception("Poolakey connection timed out");
       });
-      if (connected) {
-        _isPoolakeyInitialized = true;
-      }
+      _isPoolakeyInitialized = true;
     } catch (e) {
       _isPoolakeyInitialized = false;
       debugPrint("Poolakey initialization error: $e");

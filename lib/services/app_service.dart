@@ -17,6 +17,7 @@ class AppService {
   static bool _isPoolakeyInitialized = false;
 
   static Future<void> initPoolakey() async {
+    if (kIsWeb) return;
     if (_isPoolakeyInitialized) return;
     try {
       bool connected = await FlutterPoolakey.connect(
@@ -24,15 +25,16 @@ class AppService {
         onDisconnected: () {
           _isPoolakeyInitialized = false;
         },
-      );
+      ).timeout(const Duration(seconds: 6), onTimeout: () {
+        debugPrint("Poolakey connection timed out");
+        return false;
+      });
       if (connected) {
         _isPoolakeyInitialized = true;
-      } else {
-        throw Exception("اتصال به بازار برقرار نشد. لطفا اپلیکیشن بازار را چک کنید.");
       }
     } catch (e) {
       _isPoolakeyInitialized = false;
-      rethrow; // Rethrow to catch it in the UI
+      debugPrint("Poolakey initialization error: $e");
     }
   }
 
@@ -46,12 +48,19 @@ class AppService {
       return true;
     }
 
-    // 2. Check with Bazaar if possible (Only on Android)
-    if (!kIsWeb && Platform.isAndroid) {
+    // 2. Skip Poolakey logic on Web entirely
+    if (kIsWeb) return false;
+
+    // 3. Check with Bazaar if possible (Only on Android)
+    if (Platform.isAndroid) {
       try {
         // Add timeout to prevent hanging
-        await initPoolakey().timeout(const Duration(seconds: 5));
-        final List<PurchaseInfo> purchases = await FlutterPoolakey.getAllSubscribedProducts();
+        await initPoolakey();
+        if (!_isPoolakeyInitialized) return false;
+
+        final List<PurchaseInfo> purchases = await FlutterPoolakey.getAllSubscribedProducts()
+            .timeout(const Duration(seconds: 5));
+            
         final bool hasActiveSub = purchases.any((p) => p.productId == _subscriptionProductId);
         
         if (hasActiveSub) {
@@ -60,11 +69,10 @@ class AppService {
         }
       } catch (e) {
         debugPrint("Bazaar check failed or timed out: $e");
-        // If error (like no internet or no Bazaar), rely on local cache
       }
     }
 
-    return locallySubscribed && DateTime.now().millisecondsSinceEpoch < expiry;
+    return false;
   }
 
   static Future<void> subscribeLocally() async {

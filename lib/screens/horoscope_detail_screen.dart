@@ -40,17 +40,19 @@ class _HoroscopeDetailScreenState extends State<HoroscopeDetailScreen> {
   Future<void> _showResult(BuildContext context) async {
     try {
       debugPrint('Processing horoscope for: ${widget.type.id}');
+      print('Processing horoscope for: ${widget.type.id}');
       
+      bool isNameBased = widget.type.id == 'person_name' || widget.type.id == 'parent_names';
+      if (isNameBased) {
+        if (!_formKey.currentState!.validate()) return;
+      }
+
       // Check subscription / free use
       final canUse = await AppService.canUseHoroscope(widget.type.id);
       if (!canUse) {
         if (!context.mounted) return;
         _showSubscriptionPrompt(context);
         return;
-      }
-
-      if (widget.type.id == 'person_name' || widget.type.id == 'parent_names') {
-        if (!_formKey.currentState!.validate()) return;
       }
 
       final results = horoscopeResults[widget.type.id] ?? [];
@@ -78,7 +80,7 @@ class _HoroscopeDetailScreenState extends State<HoroscopeDetailScreen> {
       // Simulate thinking/searching
       await Future.delayed(const Duration(seconds: 2));
       if (!context.mounted) return;
-      Navigator.pop(context); // Close loading
+      if (Navigator.canPop(context)) Navigator.pop(context); // Close loading
 
       // For name-based horoscopes, use Abjad to pick a result
       int index;
@@ -114,7 +116,9 @@ class _HoroscopeDetailScreenState extends State<HoroscopeDetailScreen> {
       _showResultDialog(context, result);
     } catch (e) {
       debugPrint("Error in _showResult: $e");
+      print("Error in _showResult: $e");
       if (context.mounted) {
+        if (Navigator.canPop(context)) Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('خطا در دریافت فال: $e'),

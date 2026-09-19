@@ -38,75 +38,91 @@ class _HoroscopeDetailScreenState extends State<HoroscopeDetailScreen> {
   }
 
   Future<void> _showResult(BuildContext context) async {
-    // Check subscription / free use
-    final canUse = await AppService.canUseHoroscope(widget.type.id);
-    if (!canUse) {
-      if (!context.mounted) return;
-      _showSubscriptionPrompt(context);
-      return;
-    }
+    try {
+      debugPrint('Processing horoscope for: ${widget.type.id}');
+      
+      // Check subscription / free use
+      final canUse = await AppService.canUseHoroscope(widget.type.id);
+      if (!canUse) {
+        if (!context.mounted) return;
+        _showSubscriptionPrompt(context);
+        return;
+      }
 
-    if (widget.type.id == 'person_name' || widget.type.id == 'parent_names') {
-      if (!_formKey.currentState!.validate()) return;
-    }
+      if (widget.type.id == 'person_name' || widget.type.id == 'parent_names') {
+        if (!_formKey.currentState!.validate()) return;
+      }
 
-    final results = horoscopeResults[widget.type.id] ?? [];
-    if (results.isEmpty) return;
+      final results = horoscopeResults[widget.type.id] ?? [];
+      if (results.isEmpty) {
+        throw Exception("دیتای فال برای این بخش یافت نشد.");
+      }
 
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.indigo.shade900.withOpacity(0.9),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: Color(0xFFD4AF37)),
-            SizedBox(height: 20),
-            Text('در حال تفأل و تفسیر...', style: TextStyle(color: Colors.white, fontSize: 18)),
-          ],
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.indigo.shade900.withOpacity(0.9),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Color(0xFFD4AF37)),
+              SizedBox(height: 20),
+              Text('در حال تفأل و تفسیر...', style: TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
         ),
-      ),
-    );
+      );
 
-    // Simulate thinking/searching
-    await Future.delayed(const Duration(seconds: 2));
-    if (!context.mounted) return;
-    Navigator.pop(context); // Close loading
+      // Simulate thinking/searching
+      await Future.delayed(const Duration(seconds: 2));
+      if (!context.mounted) return;
+      Navigator.pop(context); // Close loading
 
-    // For name-based horoscopes, use Abjad to pick a result
-    int index;
-    if (widget.type.id == 'person_name') {
-      int abjad = _calculateAbjad(_nameController.text);
-      index = abjad % results.length;
-    } else if (widget.type.id == 'parent_names') {
-      int abjad = _calculateAbjad(_nameController.text) + _calculateAbjad(_motherNameController.text);
-      index = abjad % results.length;
-    } else {
-      index = Random().nextInt(results.length);
+      // For name-based horoscopes, use Abjad to pick a result
+      int index;
+      if (widget.type.id == 'person_name') {
+        int abjad = _calculateAbjad(_nameController.text);
+        index = abjad % results.length;
+      } else if (widget.type.id == 'parent_names') {
+        int abjad = _calculateAbjad(_nameController.text) + _calculateAbjad(_motherNameController.text);
+        index = abjad % results.length;
+      } else {
+        index = Random().nextInt(results.length);
+      }
+
+      final result = results[index];
+
+      // Mark as used if not subscribed
+      if (!(await AppService.isSubscribed())) {
+        await AppService.markAsUsed(widget.type.id);
+      }
+
+      // Save to history
+      await AppService.addToHistory(HoroscopeHistoryEntry(
+        typeId: widget.type.id,
+        typeTitle: widget.type.title,
+        resultTitle: result.title,
+        resultContent: result.content,
+        resultAdvice: result.advice,
+        resultPoem: result.poem,
+        timestamp: DateTime.now(),
+      ));
+
+      if (!context.mounted) return;
+      _showResultDialog(context, result);
+    } catch (e) {
+      debugPrint("Error in _showResult: $e");
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در دریافت فال: $e'),
+            backgroundColor: Colors.red.shade800,
+          ),
+        );
+      }
     }
-
-    final result = results[index];
-
-    // Mark as used if not subscribed
-    if (!(await AppService.isSubscribed())) {
-      await AppService.markAsUsed(widget.type.id);
-    }
-
-    // Save to history
-    await AppService.addToHistory(HoroscopeHistoryEntry(
-      typeId: widget.type.id,
-      typeTitle: widget.type.title,
-      resultTitle: result.title,
-      resultContent: result.content,
-      resultAdvice: result.advice,
-      resultPoem: result.poem,
-      timestamp: DateTime.now(),
-    ));
-
-    if (!context.mounted) return;
-    _showResultDialog(context, result);
   }
 
   void _showSubscriptionPrompt(BuildContext context) {

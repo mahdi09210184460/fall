@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_poolakey/flutter_poolakey.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/horoscope_history.dart';
@@ -44,21 +46,25 @@ class AppService {
       return true;
     }
 
-    // 2. Check with Bazaar if possible
-    try {
-      await initPoolakey();
-      final List<PurchaseInfo> purchases = await FlutterPoolakey.getAllSubscribedProducts();
-      final bool hasActiveSub = purchases.any((p) => p.productId == _subscriptionProductId);
-      
-      if (hasActiveSub) {
-        await subscribeLocally();
-        return true;
+    // 2. Check with Bazaar if possible (Only on Android)
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        // Add timeout to prevent hanging
+        await initPoolakey().timeout(const Duration(seconds: 5));
+        final List<PurchaseInfo> purchases = await FlutterPoolakey.getAllSubscribedProducts();
+        final bool hasActiveSub = purchases.any((p) => p.productId == _subscriptionProductId);
+        
+        if (hasActiveSub) {
+          await subscribeLocally();
+          return true;
+        }
+      } catch (e) {
+        debugPrint("Bazaar check failed or timed out: $e");
+        // If error (like no internet or no Bazaar), rely on local cache
       }
-    } catch (e) {
-      // If error (like no internet or no Bazaar), rely on local cache
     }
 
-    return false;
+    return locallySubscribed && DateTime.now().millisecondsSinceEpoch < expiry;
   }
 
   static Future<void> subscribeLocally() async {

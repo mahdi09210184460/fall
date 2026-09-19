@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/horoscope_history.dart';
 
 class AppService {
-  // TODO: Replace this with your actual RSA Public Key from Cafe Bazaar panel
   static const String _rsaPublicKey = "MIHNMA0GCSqGSIb3DQEBAQUAA4G7ADCBtwKBrwDLXe2/IeDhRC7tGQV6C43ElN5LkTdzPPB121HeLqScs+mn4cuM3F9/ZSmZE+FqIc3k261vLrylezWdZRnBaVQtNYOaWLwNv3L3BOT8vz4H0OfjQerpOE9ba28U81rQsUr5KiFdKavOznjoqt/jzNNB+Jvkgx0/CT6rMNslLjKpaLZD7Ym/wnAaiv7DXioZIYwV7YkkI+Lwb49fiHBs+8bPHinFTzkV6lFEzyGnh+MCAwEAAQ==";
   static const String _subscriptionProductId = "fallmanora1405";
 
@@ -18,22 +17,25 @@ class AppService {
   static Future<void> initPoolakey() async {
     if (_isPoolakeyInitialized) return;
     try {
-      await FlutterPoolakey.connect(
+      bool connected = await FlutterPoolakey.connect(
         _rsaPublicKey,
         onDisconnected: () {
           _isPoolakeyInitialized = false;
         },
       );
-      _isPoolakeyInitialized = true;
+      if (connected) {
+        _isPoolakeyInitialized = true;
+      } else {
+        throw Exception("اتصال به بازار برقرار نشد. لطفا اپلیکیشن بازار را چک کنید.");
+      }
     } catch (e) {
-      print("Poolakey Initialization Error: $e");
+      _isPoolakeyInitialized = false;
+      rethrow; // Rethrow to catch it in the UI
     }
   }
 
   static Future<bool> isSubscribed() async {
-    await initPoolakey();
-    
-    // 1. Check local cache first for speed
+    // 1. Check local cache first
     final prefs = await SharedPreferences.getInstance();
     final bool locallySubscribed = prefs.getBool(_isSubscribedKey) ?? false;
     final int expiry = prefs.getInt(_expiryKey) ?? 0;
@@ -42,18 +44,18 @@ class AppService {
       return true;
     }
 
-    // 2. Double check with Cafe Bazaar API for accuracy
+    // 2. Check with Bazaar if possible
     try {
+      await initPoolakey();
       final List<PurchaseInfo> purchases = await FlutterPoolakey.getAllSubscribedProducts();
       final bool hasActiveSub = purchases.any((p) => p.productId == _subscriptionProductId);
       
       if (hasActiveSub) {
-        // Sync local cache
         await subscribeLocally();
         return true;
       }
     } catch (e) {
-      print("Poolakey check error: $e");
+      // If error (like no internet or no Bazaar), rely on local cache
     }
 
     return false;

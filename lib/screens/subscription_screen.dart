@@ -33,18 +33,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     setState(() => _isProcessing = true);
     
     try {
-      // 1. Initialize Poolakey
+      // 1. Initialize Poolakey Connection
       await AppService.initPoolakey();
       
       // 2. Start Subscription Flow
-      // Replace 'monthly_subscription' with your Bazaar Product ID
       final purchaseInfo = await FlutterPoolakey.subscribe(
         "fallmanora1405", 
         payload: "manora_app_monthly_sub"
       );
       
       if (purchaseInfo != null) {
-        // 3. Success! Update local state
+        // 3. Success!
         await AppService.subscribeLocally();
         await _checkStatus();
         if (mounted) {
@@ -55,8 +54,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = "خطا در ارتباط با بازار";
+        if (e.toString().contains("ServiceDisconnectedException")) {
+          errorMessage = "اتصال با بازار قطع شد. لطفا دوباره تلاش کنید.";
+        } else if (e.toString().contains("IabNotSupportedException")) {
+          errorMessage = "پرداخت در این نسخه از بازار پشتیبانی نمی‌شود.";
+        } else if (e.toString().contains("UserCanceledException")) {
+          errorMessage = "پرداخت توسط شما لغو شد.";
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا در پرداخت: $e')),
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -116,7 +124,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     const SizedBox(height: 40),
                     if (!_isSubscribed)
                       _isProcessing 
-                        ? const CircularProgressIndicator(color: Color(0xFFD4AF37))
+                        ? const Column(
+                            children: [
+                              CircularProgressIndicator(color: Color(0xFFD4AF37)),
+                              SizedBox(height: 10),
+                              Text("در حال اتصال به بازار...", style: TextStyle(color: Colors.white)),
+                            ],
+                          )
                         : ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFD4AF37),

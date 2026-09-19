@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_poolakey/flutter_poolakey.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +15,9 @@ class AppService {
   static const String _expiryKey = 'subscription_expiry';
   static const String _usedFreeIdsKey = 'used_free_ids';
   static const String _historyKey = 'horoscope_history';
+  static const String _deviceIdKey = 'device_id';
+  static const String _lastBazaarCheckKey = 'last_bazaar_check';
+  static const String _securitySignatureKey = 'security_signature';
 
   static bool _isPoolakeyInitialized = false;
 
@@ -36,23 +41,68 @@ class AppService {
     }
   }
 
+  static Future<String?> _getDeviceId() async {
+    if (kIsWeb) return null;
+    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    try {
+      if (Platform.isAndroid) {
+        final AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        return androidInfo.id;
+      }
+    } catch (e) {
+      debugPrint("Error getting device ID: $e");
+    }
+    return null;
+  }
+
+  static String _generateSignature(String deviceId, bool isSubscribed) {
+    final String data = "$deviceId:$isSubscribed:fallmanora_secret_salt";
+    return sha256.convert(utf8.encode(data)).toString();
+  }
+
   static Future<bool> isSubscribed() async {
-    // 1. Check local cache first
     final prefs = await SharedPreferences.getInstance();
+
+    // 1. Validate device and signature
+    final String? currentDeviceId = await _getDeviceId();
+    final String storedDeviceId = prefs.getString(_deviceIdKey) ?? '';
     final bool locallySubscribed = prefs.getBool(_isSubscribedKey) ?? false;
+    final String storedSignature = prefs.getString(_securitySignatureKey) ?? '';
+
+    if (locallySubscribed) {
+      if (currentDeviceId != null && storedDeviceId.isNotEmpty && currentDeviceId != storedDeviceId) {
+        debugPrint("Security Alert: Device ID mismatch. Invalidating subscription.");
+        await _invalidateSubscription();
+        return false;
+      }
+
+      final expectedSignature = _generateSignature(storedDeviceId, true);
+      if (storedSignature != expectedSignature) {
+        debugPrint("Security Alert: Signature mismatch. Invalidating subscription.");
+        await _invalidateSubscription();
+        return false;
+      }
+    }
+
     final int expiry = prefs.getInt(_expiryKey) ?? 0;
-    
-    if (locallySubscribed && DateTime.now().millisecondsSinceEpoch < expiry) {
+    final bool isExpired = DateTime.now().millisecondsSinceEpoch >= expiry;
+
+    if (locallySubscribed && !isExpired) {
       return true;
     }
 
-    // 2. Skip Poolakey logic on Web entirely
     if (kIsWeb) return false;
 
-    // 3. Check with Bazaar if possible (Only on Android)
     if (Platform.isAndroid) {
+      // 2. Check Bazaar with caching (6 hours)
+      final int lastCheck = prefs.getInt(_lastBazaarCheckKey) ?? 0;
+      final int sixHours = 6 * 60 * 60 * 1000;
+      
+      if (DateTime.now().millisecondsSinceEpoch - lastCheck < sixHours) {
+        return locallySubscribed && !isExpired;
+      }
+
       try {
-        // Add timeout to prevent hanging
         await initPoolakey();
         if (!_isPoolakeyInitialized) return false;
 
@@ -61,9 +111,13 @@ class AppService {
             
         final bool hasActiveSub = purchases.any((p) => p.productId == _subscriptionProductId);
         
+        await prefs.setInt(_lastBazaarCheckKey, DateTime.now().millisecondsSinceEpoch);
+
         if (hasActiveSub) {
           await subscribeLocally();
           return true;
+        } else if (locallySubscribed) {
+           await _invalidateSubscription();
         }
       } catch (e) {
         debugPrint("Bazaar check failed or timed out: $e");
@@ -75,9 +129,24 @@ class AppService {
 
   static Future<void> subscribeLocally() async {
     final prefs = await SharedPreferences.getInstance();
+    final String? deviceId = await _getDeviceId();
+    
     await prefs.setBool(_isSubscribedKey, true);
     final int expiry = DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch;
     await prefs.setInt(_expiryKey, expiry);
+    
+    if (deviceId != null) {
+      await prefs.setString(_deviceIdKey, deviceId);
+      final signature = _generateSignature(deviceId, true);
+      await prefs.setString(_securitySignatureKey, signature);
+    }
+  }
+
+  static Future<void> _invalidateSubscription() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_isSubscribedKey, false);
+    await prefs.setInt(_expiryKey, 0);
+    await prefs.remove(_securitySignatureKey);
   }
 
   static Future<bool> canUseHoroscope(String horoscopeId) async {

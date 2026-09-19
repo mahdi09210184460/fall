@@ -78,7 +78,7 @@ class _HoroscopeDetailScreenState extends State<HoroscopeDetailScreen> {
       );
 
       // Simulate thinking/searching
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 500));
       if (!context.mounted) return;
       if (Navigator.canPop(context)) Navigator.pop(context); // Close loading
 

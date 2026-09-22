@@ -33,13 +33,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     setState(() => _isProcessing = true);
     
     try {
-      final Map<String, dynamic> result = await MyketIAP.launchPurchaseFlow(
+      final Map<dynamic, dynamic> result = await MyketIAP.launchPurchaseFlow(
         sku: "fallmanora1405", 
         payload: "manora_app_monthly_sub"
       ).timeout(const Duration(minutes: 5));
 
-      final IabResult iabResult = result[MyketIAP.RESULT];
-      final Purchase? purchase = result[MyketIAP.PURCHASE];
+      var iabResult = result[MyketIAP.RESULT];
+      var purchase = result[MyketIAP.PURCHASE];
 
       if (iabResult.isSuccess()) {
         await AppService.subscribeLocally();

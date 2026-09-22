@@ -57,11 +57,11 @@ class AppService {
   static Future<bool> isSubscribed() async {
     // 1. Verify subscription with Myket IAP first
     try {
-      final Map<String, dynamic> result = await MyketIAP.queryInventory(querySkuDetails: false).timeout(const Duration(seconds: 10));
-      final IabResult iabResult = result[MyketIAP.RESULT];
+      final Map<dynamic, dynamic> result = await MyketIAP.queryInventory(querySkuDetails: false).timeout(const Duration(seconds: 10));
+      var iabResult = result[MyketIAP.RESULT];
       
       if (iabResult.isSuccess()) {
-        final Inventory inventory = result[MyketIAP.INVENTORY];
+        var inventory = result[MyketIAP.INVENTORY];
         final bool hasActiveSubscription = inventory.hasPurchase(_subscriptionProductId);
         
         if (hasActiveSubscription) {

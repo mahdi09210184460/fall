@@ -4,10 +4,12 @@ import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:myket_iap/myket_iap.dart';
 import '../models/horoscope_history.dart';
 
 class AppService {
   static const String _subscriptionProductId = "fallmanora1405";
+  static const String _rsaPublicKey = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0ItIHQ8gLU/Q2wOioXcgFu4oTRhxhVpdNEI82dEqjQOZTgyksV3kQkMvjBNzHCrQvxZijDxOB00p90w+pzam67XyydC1l7QOMO42KuOrS+FgCCzi94KyTw8JPi/GlVxwDJ+MeqoRfOZ/JG/1OwvA7dP+5MblJM0MTuxd0YHbRcQIDAQAB";
 
   static const String _isSubscribedKey = 'is_subscribed';
   static const String _expiryKey = 'subscription_expiry';
@@ -15,6 +17,15 @@ class AppService {
   static const String _historyKey = 'horoscope_history';
   static const String _deviceIdKey = 'device_id';
   static const String _securitySignatureKey = 'security_signature';
+
+  static Future<void> initMyket() async {
+    try {
+      final result = await MyketIAP.init(rsaKey: _rsaPublicKey).timeout(const Duration(seconds: 10));
+      debugPrint("Myket IAP Initialized. Success: ${result.isSuccess()}");
+    } catch (e) {
+      debugPrint("Error initializing Myket IAP: $e");
+    }
+  }
 
   static Future<String?> _getDeviceId() async {
     if (kIsWeb) return null;
@@ -36,9 +47,28 @@ class AppService {
   }
 
   static Future<bool> isSubscribed() async {
+    // 1. Verify subscription with Myket IAP first
+    try {
+      final purchases = await MyketIAP.queryPurchases().timeout(const Duration(seconds: 10));
+      final bool hasActiveSubscription = purchases.any((p) => p.sku == _subscriptionProductId);
+      
+      if (hasActiveSubscription) {
+        await subscribeLocally();
+        return true;
+      } else {
+        // If Myket says no active subscription, invalidate local subscription
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool(_isSubscribedKey) ?? false) {
+          await _invalidateSubscription();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error querying purchases from Myket: $e. Falling back to local check.");
+    }
+
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. Validate device and signature
+    // 2. Validate device and signature for local fallback
     final String? currentDeviceId = await _getDeviceId();
     final String storedDeviceId = prefs.getString(_deviceIdKey) ?? '';
     final bool locallySubscribed = prefs.getBool(_isSubscribedKey) ?? false;

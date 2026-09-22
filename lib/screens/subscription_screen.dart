@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myket_iap/myket_iap.dart';
 import '../services/app_service.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -32,13 +33,26 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     setState(() => _isProcessing = true);
     
     try {
-      // Local subscription placeholder for Myket
-      await AppService.subscribeLocally();
-      await _checkStatus();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('اشتراک شما با موفقیت فعال شد!')),
-        );
+      final Map<String, dynamic> result = await MyketIAP.launchPurchaseFlow(
+        "fallmanora1405", 
+        type: IAPType.subscription
+      ).timeout(const Duration(minutes: 5));
+
+      final IabResult iabResult = result[MyketIAP.RESULT];
+      if (iabResult.isSuccess()) {
+        await AppService.subscribeLocally();
+        await _checkStatus();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('اشتراک شما با موفقیت فعال شد!')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('خطا: ${iabResult.message}'), backgroundColor: Colors.red),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

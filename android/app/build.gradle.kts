@@ -30,6 +30,12 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        val marketApplicationId = "ir.mservices.market"
+        val marketBindAddress = "ir.mservices.market.InAppBillingService.BIND"
+        manifestPlaceholders["marketApplicationId"] = marketApplicationId
+        manifestPlaceholders["marketBindAddress"] = marketBindAddress
+        manifestPlaceholders["marketPermission"] = "$marketApplicationId.BILLING"
     }
 
     signingConfigs {
@@ -54,9 +60,7 @@ android {
 }
 
 kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
+    jvmToolchain(21)
 }
 
 flutter {

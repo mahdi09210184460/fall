@@ -20,10 +20,18 @@ class AppService {
 
   static Future<void> initMyket() async {
     try {
-      final result = await MyketIAP.init(rsaKey: _rsaPublicKey).timeout(const Duration(seconds: 10));
-      debugPrint("Myket IAP Initialized. Success: ${result.isSuccess()}");
+      await MyketIAP.init(rsaKey: _rsaPublicKey);
+      debugPrint("Myket IAP Initialized.");
     } catch (e) {
       debugPrint("Error initializing Myket IAP: $e");
+    }
+  }
+
+  static Future<void> disposeMyket() async {
+    try {
+      await MyketIAP.dispose();
+    } catch (e) {
+      debugPrint("Error disposing Myket IAP: $e");
     }
   }
 
@@ -49,21 +57,26 @@ class AppService {
   static Future<bool> isSubscribed() async {
     // 1. Verify subscription with Myket IAP first
     try {
-      final purchases = await MyketIAP.queryPurchases().timeout(const Duration(seconds: 10));
-      final bool hasActiveSubscription = purchases.any((p) => p.sku == _subscriptionProductId);
+      final Map<String, dynamic> result = await MyketIAP.queryInventory(querySkuDetails: false).timeout(const Duration(seconds: 10));
+      final IabResult iabResult = result[MyketIAP.RESULT];
       
-      if (hasActiveSubscription) {
-        await subscribeLocally();
-        return true;
-      } else {
-        // If Myket says no active subscription, invalidate local subscription
-        final prefs = await SharedPreferences.getInstance();
-        if (prefs.getBool(_isSubscribedKey) ?? false) {
-          await _invalidateSubscription();
+      if (iabResult.isSuccess()) {
+        final Inventory inventory = result[MyketIAP.INVENTORY];
+        final bool hasActiveSubscription = inventory.hasPurchase(_subscriptionProductId);
+        
+        if (hasActiveSubscription) {
+          await subscribeLocally();
+          return true;
+        } else {
+          // If Myket says no active subscription, invalidate local subscription
+          final prefs = await SharedPreferences.getInstance();
+          if (prefs.getBool(_isSubscribedKey) ?? false) {
+            await _invalidateSubscription();
+          }
         }
       }
     } catch (e) {
-      debugPrint("Error querying purchases from Myket: $e. Falling back to local check.");
+      debugPrint("Error querying inventory from Myket: $e. Falling back to local check.");
     }
 
     final prefs = await SharedPreferences.getInstance();

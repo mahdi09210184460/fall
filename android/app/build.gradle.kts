@@ -64,6 +64,4 @@ flutter {
 }
 
 dependencies {
-    // Note: flutter_poolakey plugin handles its own internal dependencies.
-    // Manual implementation is only needed if not using the flutter plugin.
 }

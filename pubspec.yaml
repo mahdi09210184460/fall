@@ -40,7 +40,6 @@ dependencies:
   url_launcher: ^6.3.2
   share_plus: ^13.3.0
   intl: ^0.20.3
-  flutter_poolakey: ^2.2.0+1.0.0
   device_info_plus: ^13.2.0
   package_info_plus: ^10.2.1
   crypto: ^3.0.6

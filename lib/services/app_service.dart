@@ -3,12 +3,10 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_poolakey/flutter_poolakey.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/horoscope_history.dart';
 
 class AppService {
-  static const String _rsaPublicKey = "MIHNMA0GCSqGSIb3DQEBAQUAA4G7ADCBtwKBrwDLXe2/IeDhRC7tGQV6C43ElN5LkTdzPPB121HeLqScs+mn4cuM3F9/ZSmZE+FqIc3k261vLrylezWdZRnBaVQtNYOaWLwNv3L3BOT8vz4H0OfjQerpOE9ba28U81rQsUr5KiFdKavOznjoqt/jzNNB+Jvkgx0/CT6rMNslLjKpaLZD7Ym/wnAaiv7DXioZIYwV7YkkI+Lwb49fiHBs+8bPHinFTzkV6lFEzyGnh+MCAwEAAQ==";
   static const String _subscriptionProductId = "fallmanora1405";
 
   static const String _isSubscribedKey = 'is_subscribed';
@@ -16,30 +14,7 @@ class AppService {
   static const String _usedFreeIdsKey = 'used_free_ids';
   static const String _historyKey = 'horoscope_history';
   static const String _deviceIdKey = 'device_id';
-  static const String _lastBazaarCheckKey = 'last_bazaar_check';
   static const String _securitySignatureKey = 'security_signature';
-
-  static bool _isPoolakeyInitialized = false;
-
-  static Future<void> initPoolakey() async {
-    if (kIsWeb) return;
-    if (_isPoolakeyInitialized) return;
-    try {
-      await FlutterPoolakey.connect(
-        _rsaPublicKey,
-        onDisconnected: () {
-          _isPoolakeyInitialized = false;
-        },
-      ).timeout(const Duration(seconds: 6), onTimeout: () {
-        debugPrint("Poolakey connection timed out");
-        throw Exception("Poolakey connection timed out");
-      });
-      _isPoolakeyInitialized = true;
-    } catch (e) {
-      _isPoolakeyInitialized = false;
-      debugPrint("Poolakey initialization error: $e");
-    }
-  }
 
   static Future<String?> _getDeviceId() async {
     if (kIsWeb) return null;
@@ -87,44 +62,7 @@ class AppService {
     final int expiry = prefs.getInt(_expiryKey) ?? 0;
     final bool isExpired = DateTime.now().millisecondsSinceEpoch >= expiry;
 
-    if (locallySubscribed && !isExpired) {
-      return true;
-    }
-
-    if (kIsWeb) return false;
-
-    if (Platform.isAndroid) {
-      // 2. Check Bazaar with caching (6 hours)
-      final int lastCheck = prefs.getInt(_lastBazaarCheckKey) ?? 0;
-      final int sixHours = 6 * 60 * 60 * 1000;
-      
-      if (DateTime.now().millisecondsSinceEpoch - lastCheck < sixHours) {
-        return locallySubscribed && !isExpired;
-      }
-
-      try {
-        await initPoolakey();
-        if (!_isPoolakeyInitialized) return false;
-
-        final List<PurchaseInfo> purchases = await FlutterPoolakey.getAllSubscribedProducts()
-            .timeout(const Duration(seconds: 5));
-            
-        final bool hasActiveSub = purchases.any((p) => p.productId == _subscriptionProductId);
-        
-        await prefs.setInt(_lastBazaarCheckKey, DateTime.now().millisecondsSinceEpoch);
-
-        if (hasActiveSub) {
-          await subscribeLocally();
-          return true;
-        } else if (locallySubscribed) {
-           await _invalidateSubscription();
-        }
-      } catch (e) {
-        debugPrint("Bazaar check failed or timed out: $e");
-      }
-    }
-
-    return false;
+    return locallySubscribed && !isExpired;
   }
 
   static Future<void> subscribeLocally() async {

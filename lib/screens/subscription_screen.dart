@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_poolakey/flutter_poolakey.dart';
 import '../services/app_service.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -33,38 +32,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     setState(() => _isProcessing = true);
     
     try {
-      // 1. Initialize Poolakey Connection
-      await AppService.initPoolakey();
-      
-      // 2. Start Subscription Flow
-      final purchaseInfo = await FlutterPoolakey.subscribe(
-        "fallmanora1405", 
-        payload: "manora_app_monthly_sub"
-      );
-      
-      if (purchaseInfo != null) {
-        // 3. Success!
-        await AppService.subscribeLocally();
-        await _checkStatus();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('اشتراک شما با موفقیت فعال شد!')),
-          );
-        }
+      // Local subscription placeholder for Myket
+      await AppService.subscribeLocally();
+      await _checkStatus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('اشتراک شما با موفقیت فعال شد!')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = "خطا در ارتباط با بازار";
-        if (e.toString().contains("ServiceDisconnectedException")) {
-          errorMessage = "اتصال با بازار قطع شد. لطفا دوباره تلاش کنید.";
-        } else if (e.toString().contains("IabNotSupportedException")) {
-          errorMessage = "پرداخت در این نسخه از بازار پشتیبانی نمی‌شود.";
-        } else if (e.toString().contains("UserCanceledException")) {
-          errorMessage = "پرداخت توسط شما لغو شد.";
-        }
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+          const SnackBar(content: Text('خطا در برقراری اشتراک'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -128,7 +107,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             children: [
                               CircularProgressIndicator(color: Color(0xFFD4AF37)),
                               SizedBox(height: 10),
-                              Text("در حال اتصال به بازار...", style: TextStyle(color: Colors.white)),
+                              Text("در حال پردازش...", style: TextStyle(color: Colors.white)),
                             ],
                           )
                         : ElevatedButton(

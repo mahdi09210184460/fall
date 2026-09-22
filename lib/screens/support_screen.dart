@@ -66,22 +66,14 @@ class SupportScreen extends StatelessWidget {
                           size: 70,
                           color: Color(0xFFD4AF37),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 30),
                         const Text(
-                          'برای دریافت فال اختصاصی',
-                          style: TextStyle(
-                            fontSize: 22,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'از طریق راه‌های ارتباطی زیر با ما در تماس باشید',
+                          'راه‌های ارتباطی با ما:',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
+                            fontSize: 20,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 30),
